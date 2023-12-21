@@ -33,7 +33,7 @@ To also save the results to a CSV file, add the `--csv` flag:
 python directory_listing_tree.py --url "https://example.com/path/to/directory" --csv
 ```
 
-![image](https://github.com/michiiii/directory-listing-tree/assets/12173974/289d0441-ab44-4b33-83fd-8e2141dacc2f)
+![image](https://github.com/michiiii/directory-listing-tree/assets/12173974/8043cf17-d3c4-4ecc-a14e-7df41f129823)
 
 
 The CSV file will be named after the URL with slashes replaced by underscores.
