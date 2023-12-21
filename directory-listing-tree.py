@@ -1,3 +1,23 @@
+"""
+Directory Listing Script
+
+This script navigates through web server directory listings, prints the content to the console, 
+and optionally saves file details (filename, URL, size, and last modified date) to a CSV file.
+
+Usage:
+    Run the script with --url to specify the directory listing URL.
+    Use --csv to save the results into a CSV file.
+
+Example:
+    python directory_listing_tree.py --url "https://example.com/path" --csv
+
+Author: michiiii
+Date: 21.12.2023
+License: MIT
+
+"""
+
+
 import argparse
 import requests
 from bs4 import BeautifulSoup
