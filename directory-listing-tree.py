@@ -28,10 +28,13 @@ def get_file_info(file_url):
         file_size_bytes = int(response.headers.get('Content-Length', '0'))
         file_size_mb = file_size_bytes / (1024 * 1024)  # Convert to MB
         
-        # Format the last modified date as yyyy.mm.dd
+        # Extract last modified date, or use "N/A" if not available
         last_modified = response.headers.get('Last-Modified', 'N/A')
-        last_modified_date = datetime.strptime(last_modified, '%a, %d %b %Y %H:%M:%S %Z')
-        formatted_last_modified = last_modified_date.strftime('%Y.%m.%d')
+        if last_modified != 'N/A':
+            last_modified_date = datetime.strptime(last_modified, '%a, %d %b %Y %H:%M:%S %Z')
+            formatted_last_modified = last_modified_date.strftime('%Y.%m.%d')
+        else:
+            formatted_last_modified = 'N/A'
 
         return file_size_mb, formatted_last_modified
 
@@ -60,7 +63,8 @@ def fetch_directory_listing(url, indent=""):
                     # It's a file (orange text)
                     file_url = urljoin(url, href)
                     file_size_mb, last_modified = get_file_info(file_url)
-                    print(ORANGE + indent + f"{directory_name}  Size: {file_size_mb:.2f} MB, Last Modified: {last_modified}" + RESET)
+                    file_size_text = "%.2f MB" % file_size_mb if file_size_mb != 'N/A' else 'N/A'
+                    print(ORANGE + indent + "%s  Size: %s, Last Modified: %s" % (directory_name, file_size_text, last_modified) + RESET)
 
             elif directory_name == 'Parent Directory':
                 # Found the "Parent directory" link
@@ -71,7 +75,7 @@ def fetch_directory_listing(url, indent=""):
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch and display files in a directory listing URL")
-    parser.add_argument("--url", required=True, help="A URL with directory listing")
+    parser.add_argument("--url", required=True, help="The URL with directory listing")
 
     args = parser.parse_args()
 
