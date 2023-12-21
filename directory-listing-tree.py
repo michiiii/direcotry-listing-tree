@@ -17,33 +17,30 @@ License: MIT
 
 """
 
-
 import argparse
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from datetime import datetime
 import warnings
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import csv
+import logging
 
-# Configure warnings and ANSI escape codes for text color
-warnings.simplefilter('ignore', InsecureRequestWarning)  # Suppress only the single InsecureRequestWarning from urllib3
+# Setup logging to capture errors silently
+logging.basicConfig(filename='error.log', level=logging.ERROR, format='%(asctime)s:%(levelname)s:%(message)s')
+
+# Suppress only the single InsecureRequestWarning from urllib3 needed
+warnings.simplefilter('ignore', InsecureRequestWarning)
+
+# ANSI escape codes for text color
 BLUE = '\033[94m'
 ORANGE = '\033[93m'
 RESET = '\033[0m'
 
-
-def is_directory_listing_page(soup):
-    """Check if the BeautifulSoup object represents a directory listing page."""
-    return bool(soup.find('title') and 'Index of' in soup.find('title').get_text())
-
-
-def is_file_based_on_extension(url):
-    """Determine if the URL points to a file based on the presence of a file extension."""
-    parsed_url = urlparse(url)
-    return '.' in parsed_url.path.split('/')[-1]
-
+def is_directory(url):
+    """Determine if the URL points to a directory based on its ending with '/'."""
+    return url.endswith('/')
 
 def get_file_info(file_url):
     """Retrieve file information including size and last modified date."""
@@ -67,9 +64,8 @@ def get_file_info(file_url):
         return file_size_mb, formatted_last_modified
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching file info for {file_url}: {e}")
+        logging.error(f"Error fetching file info for {file_url}: {e}")
         return 'N/A', 'N/A'
-
 
 def write_to_csv(file_data, csv_filename):
     """Write collected file data into a CSV file."""
@@ -78,7 +74,6 @@ def write_to_csv(file_data, csv_filename):
         writer.writerow(['Filename', 'URL', 'Size (MB)', 'Last Modified'])
         writer.writerows(file_data)
 
-
 def fetch_directory_listing(url, soup, collect_csv=False):
     """Fetch and process the directory listing from the given URL."""
     items = []
@@ -86,7 +81,7 @@ def fetch_directory_listing(url, soup, collect_csv=False):
 
     try:
         rows = soup.find_all('tr')
-        for row in rows[2:]:  # Skip header rows
+        for row in rows[2:]:
             cols = row.find_all('td')
             if len(cols) > 3:
                 name = cols[1].get_text(strip=True)
@@ -97,7 +92,7 @@ def fetch_directory_listing(url, soup, collect_csv=False):
                 full_url = urljoin(url, href)
                 last_modified = cols[2].get_text(strip=True)
 
-                if is_file_based_on_extension(full_url):
+                if not is_directory(full_url):
                     size_mb, last_modified = get_file_info(full_url)
                     details = f"Size: {size_mb:.3f} MB, Last Modified: {last_modified}"
                     items.append((False, name, details))
@@ -108,39 +103,40 @@ def fetch_directory_listing(url, soup, collect_csv=False):
                     items.append((True, name, details))
 
     except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
+        logging.error(f"Error: {e}")
 
     return items, csv_data
 
-
 def print_directory_listing(url, indent="", collect_csv=False):
     """Print the directory listing and return data for CSV if needed."""
+    csv_data = []  # Initialize csv_data as an empty list
+
     try:
         response = requests.get(url, verify=False)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        if is_directory_listing_page(soup):
-            items, csv_data = fetch_directory_listing(url, soup, collect_csv)
+        if soup.find('title') and 'Index of' in soup.find('title').get_text():
+            items, child_csv_data = fetch_directory_listing(url, soup, collect_csv)
             items.sort(key=lambda x: (not x[0], x[1]))
 
             for is_dir, name, details in items:
                 if is_dir:
                     print(BLUE + indent + name + RESET)
                     next_url = urljoin(url, name + '/')
-                    child_csv_data = print_directory_listing(next_url, indent + '    ', collect_csv)
-                    if collect_csv:
-                        csv_data.extend(child_csv_data)
+                    more_csv_data = print_directory_listing(next_url, indent + '    ', collect_csv)
+                    csv_data.extend(more_csv_data)  # Combine data from child directories
                 else:
                     print(ORANGE + indent + f"{name}  {details}" + RESET)
 
-            return csv_data
+            csv_data.extend(child_csv_data)  # Combine data from the current directory
         else:
             print(f"{indent}The page at {url} is not a directory listing. Skipping.")
 
     except requests.exceptions.RequestException as e:
-        print(f"Error accessing {url}: {e}")
+        logging.error(f"Error accessing {url}: {e}")
 
+    return csv_data  # Always return csv_data, even if it's empty
 
 def main():
     """Main function to handle argument parsing and initiate directory listing."""
@@ -156,7 +152,6 @@ def main():
         csv_filename = args.url.replace('http://', '').replace('https://', '').replace('/', '_') + '.csv'
         write_to_csv(csv_data, csv_filename)
         print(f"CSV file created: {csv_filename}")
-
 
 if __name__ == "__main__":
     main()
